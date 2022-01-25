@@ -1,1 +1,1 @@
-# Microeconomie_regression_linaire
+# Econometrie_regression_linaire
