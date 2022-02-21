@@ -6,4 +6,4 @@ y<sub>i</sub> | -6 | -13 | -20 | -22 | -29 | -39 |-42 | -47 | -53 | -54
 
 Donner l'équation de la droite d'ajustement affine par la méthode des moindres <br>
 carrés.
-Vous donnerez l'équation sous la forme y = ax+by avec a et b arrondis au centième.
+Vous donnerez l'équation sous la forme y = ax + b avec a et b arrondis au centième.
