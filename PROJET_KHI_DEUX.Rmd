@@ -1,0 +1,292 @@
+---
+output:
+  html_document:
+    toc: true
+    toc_float: true
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+## Etude de la loi de Khi-2 
+
+
+Réalisé par Hawa Sidibe et Michaël SOGLO
+
+
+### I. Introduction
+
+En statistiques et en théorie des probabilités, la loi du $χ^2$ centrée décrit la distribution de la somme des carrés de $k$ variables aléatoires normales centrées et réduites, chacune étant indépendante des autres. Cette loi est largement utilisée en inférence statistique et dans les tests statistiques, comme le test du $χ^2$.
+
+
+### II. Fonction de densité et de repartition de la loi du χ²
+
+**La fonction densité**
+
+La fonction densité de la loi du $χ^2$, notée $f(x; k)$, décrit la probabilité de chaque valeur possible de la variable aléatoire $χ^2$.
+
+La fonction densité de probabilité est définie comme suit :
+
+$$f_{X}(x,k)=\frac{1}{2^{\frac{k}{2}} \Gamma{(\frac{k}{2})}}x^{\frac{k}{2} - 1}e^{\frac{x}{2}}$$
+
+Où $\Gamma$ est la fonction gamma.
+
+Voici un exemple de courbe de densité pour $k=10$
+
+```{r}
+# Vecteur de valeurs pour l'axe des abscisses
+x <- seq(0, 25, by=0.1)
+
+# Calcul de la densité de la loi khi-deux
+y <- dchisq(x, df=10)
+
+# Tracé de la densité
+plot(x, y, type="l", col="blue", lwd=2, xlab="x", ylab="Densité", 
+     main="Densité de la loi khi-deux avec 10 degrés de liberté")
+```
+
+**La fonction de répartition**
+
+La fonction de répartition de la loi du $χ^2$, notée F(x; k), décrit la probabilité que la variable aléatoire $χ^2$ soit inférieure ou égale à une valeur donnée $x$.
+
+La fonction densité de probabilité est définie comme suit :
+
+$$F_{X}(x,k)=\frac{\gamma(\frac{k}{2},\frac{x}{2} )}{\Gamma(\frac{k}{2})}$$
+
+Où $\gamma(s,t)$ est la fonction gamma incomplète.
+
+Voici un exemple de la courbe de la fonction de repartition pour $k=10$
+
+```{r}
+# Vecteur de valeurs pour l'axe des abscisses
+x <- seq(0, 25, by=0.1)
+
+# Calcul de la densité de la loi khi-deux
+y <- pchisq(x, df=10)
+
+# Tracé de la densité
+plot(x, y, type="l", col="blue", lwd=2, xlab="x", ylab="Densité", 
+     main="Repartition de la loi khi-deux avec 10 degrés de liberté")
+```
+
+### III. Etude d'un cas de la loi de Khi-deux.
+
+Nous allons maintenant considérer la loi de $\chi^{2}_{4}$ à 4 degrés de liberté, souvent utilisée pour des tests statistiques et la construction d'intervalles de confiance. Nous allons calculer l'esperance et la variance de $\chi^{2}_{2}$
+
+
+#### 1. Esperance
+
+Soient $k$ variables aléatoires $X_{1}, ... , X_{k}$ indépendantes suivant la loi normale centrée et réduite, c'est-à-dire la loi normale $\mathcal{N}(0,1)$ de moyenne 0 et d'écart-type 1. La variable $X$ est définie par :  
+
+$$X := \sum_{x=1}^{N-2} X^{2}$$
+
+suit une loi du $\chi^{2}$ à $N-2$ degrés de liberté. On a :
+
+$$\mathbb{E}(X) = \mathbb{E}\bigg(\sum_{x=1}^{N-2} X^{2}\bigg) = \sum_{x=1}^{N-2} \mathbb{E}(X^{2}) = N-2$$
+
+Car $\mathbb{E}(X^{2}) = \sigma_{\mathcal{N}(0,1)} = 1$
+
+
+#### 2.Variance
+
+De même, avec l'hypothese de l'independance des variables, on peut ecrire :
+
+$$\mathbb{V}(X) = \mathbb{V}\bigg(\sum_{x=1}^{N-2} X^{2}\bigg) = \sum_{x=1}^{N-2} \mathbb{V}(X^{2}) = \sum_{x=1}^{N-2} \mathbb{E}(X^4) - 1 =2-N+\sum_{x=1}^{N-2} \mathbb{E}(X^4)$$
+
+Pour calculer l'espérance de la variable aléatoire $X^4$, on peut utiliser la formule générale pour le calcul de l'espérance :
+
+$\mathbb{E}(g(X))=\int_{-\infty}^{+\infty}g(x)f_X(x)dx$
+où $f_X(x)$ est la fonction densité de probabilité de la variable aléatoire X.
+
+Dans notre cas, $X$ suit la loi normale centrée réduite, dont la densité de probabilité est donnée par :
+
+$$f_X(x) = \frac{1}{\sqrt{2\pi}}e^{-\frac{x^2}{2}}$$
+
+Ainsi, on a :
+
+$$\mathbb{E}(X^4) = \int_{-\infty}^{+\infty}x^4\frac{1}{\sqrt{2\pi}}e^{-\frac{x^2}{2}}dx$$
+
+Cette intégrale peut être résolue en utilisant une méthode d'intégration par parties. On pose :
+
+$u = x^3$, $du = 3x^2dx$, $dv = x\frac{1}{\sqrt{2\pi}}e^{-\frac{x^2}{2}}dx$, $v = -\frac{1}{\sqrt{2\pi}}e^{-\frac{x^2}{2}}$
+
+En appliquant la formule d'intégration par parties, on a :
+
+$$\int_{-\infty}^{+\infty}x^4\frac{1}{\sqrt{2\pi}}e^{-\frac{x^2}{2}}dx = -x^3\frac{1}{\sqrt{2\pi}}e^{-\frac{x^2}{2}}\Big|{-\infty}^{+\infty} + 3\int{-\infty}^{+\infty}x^2\frac{1}{\sqrt{2\pi}}e^{-\frac{x^2}{2}}dx$$
+
+Comme $\lim_{x \to \pm \infty} x^3 e^{-\frac{x^2}{2}} = 0$, le premier terme de l'équation précédente est nul. On a donc :
+
+$$\mathbb{E}(X^4) = 3\int_{-\infty}^{+\infty}x^2\frac{1}{\sqrt{2\pi}}e^{-\frac{x^2}{2}}dx$$
+
+Cette intégrale est égale à l'espérance de la variable aléatoire $X^2$, qui est égale à 1 (puisque X suit la loi normale centrée réduite). On a donc :
+
+$$\mathbb{E}(X^4) = 3\times 1 = 3$$
+
+Ainsi, l'espérance de la variable aléatoire $X^4$ est égale à $3$.
+
+$$\mathbb{V}(X)=3(N-2) - N-2 = 2N-4$$
+
+
+#### 3. Simulation et calcul des moyennes
+
+Nous allons utiliser R pour effectuer un échantillonnage de la loi de $X^4$ à 4 degrés de liberté. Pour cela, nous allons réaliser un tirage de 1, puis de 2, puis de 3, ... jusqu'à 1000 nombres aléatoires dans cette loi. Nous allons ensuite calculer la moyenne de l'échantillon obtenu après chaque tirage.
+
+```{r}
+# Fixer le nombre de tirages
+n_tirages <- 1000
+
+# Initialiser le vecteur pour stocker les moyennes d'échantillon
+moyennes_echantillon <- numeric(n_tirages)
+
+# Réaliser les tirages et calculer les moyennes d'échantillon
+for (i in 1:n_tirages) {
+  # Tirer i nombres aléatoires dans la loi du khi-deux avec 4 degrés de liberté
+  tirage <- rchisq(i, df = 4)
+  
+  # Calculer la moyenne d'échantillon
+  moyennes_echantillon[i] <- mean(tirage)
+}
+
+# Afficher les moyennes d'échantillon obtenues
+plot(moyennes_echantillon, type = 'l', 
+     main = "Evolution de la moyenne d'échantillon", 
+     xlab = "Nombre de tirages", 
+     ylab = "Moyenne d'échantillon")
+abline(h = 4, col = "red")
+```
+
+Ce qui se passe dans cette simulation, c'est que les moyennes d'échantillon se rapprochent progressivement de l'espérance de la loi du $X^4$ avec 4 degrés de liberté, qui est égale à 4. En effet, la loi du $X^4$ est une distribution asymétrique et étalée, mais lorsque le nombre de tirages est grand, la moyenne d'échantillon devient une bonne approximation de l'espérance de la distribution. C'est pourquoi nous observons une convergence des moyennes d'échantillon vers la valeur théorique de 4.
+
+#### 3. Simulation et calcul des variances.
+
+Pour étudier la variance de la loi du $X^4$ à 4 degrés de liberté, nous pouvons procéder de la même manière que pour l'étude de la moyenne. Nous allons réaliser un tirage de 1, puis de 2, puis de 3, ... jusqu'à 1000 nombres aléatoires dans cette loi. Nous allons ensuite calculer la variance de l'échantillon obtenu après chaque tirage.
+
+```{r}
+# Initialisation du vecteur de stockage des variances
+variances_echantillon <- numeric(1000)
+
+# Réalisation de l'échantillonnage et calcul des variances
+for (n in 1:1000) {
+  echantillon <- rchisq(n, df = 4)
+  variances_echantillon[n] <- var(echantillon)
+}
+
+# Tracé de l'évolution des variances d'échantillon
+plot(variances_echantillon, type = 'l', 
+     xlab = 'Taille de l\'échantillon', 
+     ylab = 'Variance de l\'échantillon',
+     main = 'Evolution de la variance d\'échantillon en fonction de la taille de l\'échantillon')
+abline(h=8, col='red')
+```
+
+La variance théorique de la loi du $X^4$ à 4 degrés de liberté est de 8.
+
+Lorsque l'on réalise un échantillonnage à partir de cette loi et que l'on calcule la variance de chaque échantillon, on observe que plus la taille de l'échantillon augmente, plus la moyenne de ces variances calculées s'approche de la variance théorique de 8.
+
+Ceci est un exemple de la loi des grands nombres, qui stipule que plus le nombre d'observations d'un échantillon est grand, plus la moyenne de cet échantillon se rapproche de la moyenne théorique de la population d'où provient l'échantillon. Dans ce cas-ci, la variance est considérée comme la moyenne des carrés des écarts à la moyenne. Ainsi, la loi des grands nombres explique pourquoi la variance de l'échantillon converge vers la variance théorique de 8 lorsque la taille de l'échantillon augmente.
+
+#### 4. Illustration de l'influence pour un modele linéaire.
+
+Les résultats précédents sur la loi de khi-deux à 4 degrés de liberté ont des implications importantes pour les intervalles de confiance et les tests d'hypothèses dans le modèle linéaire $y_n=x_n^T \beta+ϵ_n$. Voyons comment ces résultats peuvent être illustrés en R.
+
+La loi de khi-deux intervient dans l'estimation de la variance de l'erreur $\epsilon_n$ du modèle linéaire. En effet, en supposant que les erreurs $\epsilon_n$ suivent une loi normale centrée de variance $\sigma^2$, alors la statistique $\frac{\sum_{i=1}^{n} \epsilon_i^2}{\sigma^2}$ suit une loi de khi-deux à $n$ degrés de liberté. Cette statistique est utilisée pour tester l'hypothèse de l'adéquation du modèle linéaire aux données observées, ainsi que pour construire des intervalles de confiance pour les paramètres du modèle.
+
+L'estimateur de la variance résiduelle $\sigma^2$ est défini comme suit:
+
+$$\hat{\sigma^{2}} = \frac{\sum_{i=1}^{n} \epsilon_i^2}{n-k}$$
+
+où $n$ est la taille de l'échantillon et $k$ est le nombre de paramètres à estimer, y compris l'intercept et les coefficients de régression. Cet estimateur est souvent utilisé pour calculer les intervalles de confiance et effectuer des tests d'hypothèses dans le modèle linéaire.
+
+l'intervalle de confiance est données par : 
+
+$$ IC = \Big[\frac{(n-k)\hat{\sigma}^2}{\chi_{1-\frac{\alpha}{2}}^2},\frac{(n-k)\hat{\sigma}^2}{\chi_{\frac{\alpha}{2}}^2}\Big]$$
+
+Où ${\chi_{\frac{\alpha}{2}}^2}$ représente le quantile de la loi du chi-carré à $\frac{\alpha}{2}$ degrés de liberté.
+
+
+```{r message=FALSE, warning=FALSE}
+library(ggplot2)
+library(tidyr)
+
+# Définir les paramètres
+set.seed(123)
+Taille <- seq(10, 1000, 50)
+alpha <- 0.95 # seuil de confiance
+K <- 2 # le nombre de paramètres
+indice <- 0
+sigma_chap <- c()
+
+# Créer des vecteurs pour stocker les résultats
+conf_int_chisq <- matrix(data = NA, ncol = 4, nrow = length(Taille))
+test_hypothesis <- matrix(data = NA, ncol = 4, nrow = length(Taille))
+
+# Boucle sur chaque valeur de la taille pour calculer les résultats
+for(i in Taille){
+  indice <- indice + 1
+  
+  # Générer des données
+  x <- rnorm(i, mean = 0, sd = 1)
+  y <- 2 * x + rnorm(i, mean = 0, sd = 1) 
+  
+  # Ajuster un modèle linéaire simple
+  fit <- lm(y ~ x)
+  
+  # Calculer l'intervalle de confiance classique à 95%
+  conf_int_t <- confint(fit, level = alpha)
+  
+  # Stastistiques 
+  sigma_chap[indice] <- sum(fit$residuals^2)/(i-K)
+  
+  # Calculer l'intervalle de confiance basé sur la loi de khi-deux à 4 degrés de liberté
+  conf_int_chisq[indice,1] <- coef(fit)[1] - qnorm(0.975) * sqrt(summary(fit)$sigma^2 / qchisq(0.975, df = 4))
+  conf_int_chisq[indice,2] <- coef(fit)[2] - qnorm(0.975) * sqrt(summary(fit)$sigma^2 / qchisq(0.975, df = 4))
+  conf_int_chisq[indice,3] <- coef(fit)[1] + qnorm(0.025) * sqrt(summary(fit)$sigma^2 / qchisq(0.025, df = 4))
+  conf_int_chisq[indice,4] <- coef(fit)[2] + qnorm(0.025) * sqrt(summary(fit)$sigma^2 / qchisq(0.025, df = 4))
+  
+  # Effectuer un test d'hypothèse sur le coefficient de régression beta
+  test_hypothesis[indice,] <- c(summary(fit)$coefficients[2, ] / sqrt(summary(fit)$cov.unscaled[2, 2]))
+}
+
+# Convertir les matrices en dataframes
+conf_int_chisq <- as.data.frame(conf_int_chisq)
+test_hypothesis <- as.data.frame(test_hypothesis)
+
+# Ajouter les noms de colonnes pour chaque dataframe
+colnames(conf_int_chisq) <- c("IC_min_beta_0", "IC_max_beta_0", "IC_min_beta_1", "IC_max_beta_1")
+colnames(test_hypothesis) <- c("Estimate","Std.Error","t_value","Pr(>|t|)")
+```
+
+Nous avons les graphiques des differentes valeurs en fonction de la taille de l'echantillon:
+
+```{r}
+plot(test_hypothesis$Estimate, type = 'l',
+     main = 'Valeur de Estimate',xlab = "Echantillon",ylab ="Estimate" )
+plot(test_hypothesis$Std.Error, type = 'l',
+     main = 'Valeur de Std.Error ',xlab = "Echantillon",ylab = "Std.Error")
+plot(test_hypothesis$t_value, type = 'l',
+     main = 'Valeur de t value',xlab = "Echantillon",ylab = "t value")
+plot(test_hypothesis$`Pr(>|t|)`, type = 'l',
+     main = 'Valeur de Pr(>|t|)', xlab = "Echantillon", ylab = "Pr(>|t|)")
+
+```
+
+En observant les résultats, on peut constater que la valeur de $Pr(>|t|)$ diminue à mesure que la taille de l'échantillon augmente, tendant ainsi vers zéro. Par ailleurs, l'écart-type de l'erreur reste stable autour de la valeur de 1.
+
+```{r}
+df_conf_int <- data.frame(Taille, conf_int_chisq) %>% 
+  gather(key = "ic_type", value = "ic_value", -Taille)
+
+# Tracer les intervalles de confiance avec ggplot2
+ggplot(df_conf_int, aes(x = Taille, y = ic_value, color = ic_type)) +
+  geom_line() +
+  labs(x = "Taille de l'échantillon", y = "Valeur de l'intervalle de confiance", 
+       color = "Type d'intervalle de confiance") +
+  theme_bw() + 
+  labs(title = 'Intervalles de confiance') + theme(plot.title = element_text(hjust = 0.5, vjust = 0.5))
+```
+
+### IV. Conclusion
+
+D'après l'analyse, nous pouvons voir que la valeur estimée de sigma carré, qui représente la variance résiduelle, diminue à mesure que la taille de l'échantillon augmente. Cela signifie que plus nous avons de données, plus l'estimation de la variance résiduelle est précise, ce qui est une bonne nouvelle pour l'analyse économétrique.
+
+Cependant, il est important de noter que l'estimation de la variance résiduelle est basée sur des hypothèses sur la distribution des erreurs et la linéarité de la relation entre les variables. Si ces hypothèses ne sont pas respectées, l'estimation de la variance résiduelle peut être biaisée et ne pas être représentative de la véritable variance. Il est donc important de vérifier ces hypothèses avant d'interpréter les résultats de l'analyse économétrique.
