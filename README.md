@@ -1,1 +1,1 @@
-# Econometrie_regression_linaire
+# Econometrie et regression linaire
