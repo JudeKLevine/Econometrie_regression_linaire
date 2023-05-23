@@ -1,0 +1,1195 @@
+---
+output:
+  html_document:
+    toc: true
+    toc_float: true
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+<center><h2>Projet Statistique</h2></center>
+
+<center><h4>Aissatou BALDE</h4></center>
+
+
+*Impotation des librairies*
+
+```{r warning=FALSE, message=FALSE}
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(Hmisc)
+library(tibble)
+library(stats)
+library(tidyr)
+library(missForest)
+library(naniar)
+library(missForest)
+library(visdat)
+library(VIM)
+library(tidyverse)
+```
+
+
+## Partie A: Valeurs manquantes et etude du biais 
+
+
+### I. Introduction
+
+Un laboratoire pharmaceutique a mené une étude pour évaluer les effets secondaires d'une molécule en demandant à des volontaires de noter la force de ces effets sur une échelle de 1 à 10 une fois par mois pendant un an. Les données complètes de cette étude sont stockées dans le fichier "data etude clinique.csv". L'objectif de cette analyse est d'étudier l'impact des valeurs manquantes en supprimant des données et en examinant les éventuels biais introduits, ainsi que les différentes méthodes d'imputation possibles.
+
+
+### II. Analyse des données
+
+Au cours de notre étude, nous aurons besoin d'utiliser différentes bases de données qui présentent des caractéristiques, des structures et des types de données manquantes variés. Cela est dû à la diversité des sources de données et à la complexité des données collectées. Par conséquent, nous devrons adapter nos méthodes de traitement des données pour répondre aux spécificités de chaque base de données.
+
+
+*Importation des bases de données*
+
+Les données sont sur [Github](https://github.com/BaldeAicha/Document_projet/tree/main), nous allons directement les importer.
+
+```{r warning=FALSE, message=FALSE}
+data_etude_clinique.csv <- read_csv("https://raw.githubusercontent.com/BaldeAicha/Document_projet/main/data_etude_clinique.csv")
+data_etude_clinique.csv_2 <- read_csv("https://raw.githubusercontent.com/BaldeAicha/Document_projet/main/data_etude_clinique_2.csv")
+data_etude_clinique.csv_3 <- read_csv("https://raw.githubusercontent.com/BaldeAicha/Document_projet/main/data_etude_clinique_3.csv")
+data_etude_clinique.csv_4 <- read_csv("https://raw.githubusercontent.com/BaldeAicha/Document_projet/main/data_etude_clinique_4.csv")
+
+
+mois <- c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
+colnames(data_etude_clinique.csv) <- c("AgeGroup", mois)
+colnames(data_etude_clinique.csv_2) <- c("AgeGroup", mois)
+colnames(data_etude_clinique.csv_3) <- c("AgeGroup", mois)
+colnames(data_etude_clinique.csv_4) <- c("AgeGroup", mois)
+```
+
+
+#### 1. Données `data_etude_clinique.csv`
+
+Dans cette partie, nous allons travailler avec un jeu de données complet, sans aucune valeur manquante. Nous disposons de la moyenne des effets secondaires pour chaque mois de traitement.
+
+```{r warning=FALSE, message=FALSE}
+moyennes_effets_par_mois <- data_etude_clinique.csv %>%
+  select(-AgeGroup) %>%
+  summarise_all(mean) %>%
+  unlist() %>%
+  set_names(mois)
+
+print(moyennes_effets_par_mois)
+```
+On veut créer un graphique boxplot qui montre la force des effets secondaires pour chaque mois sur une même figure. Cela permettra de visualiser la distribution de la force des effets secondaires pour chaque mois et de les comparer entre eux.
+
+```{r message=FALSE, warning=FALSE}
+# Sélectionner les colonnes à tracer (à partir de la 2ème colonne)
+cols <- names(data_etude_clinique.csv)[-1]
+
+# Tracer le boxplot
+boxplot(data_etude_clinique.csv[,cols],
+        main = "Force des effets secondaires par mois",
+        xlab = "Mois",
+        ylab = "Force des effets secondaires",
+        col = "lightblue",
+        border = "gray",
+        notch = TRUE,
+        boxwex = 0.5,
+        outpch = 20,
+        cex = 0.8)
+```
+
+#### 2. Manipulation de données dans **data_etude_clinique_2.csv**
+
+Il s'agit d'une manipulation de données qui consiste à sélectionner au hasard $5\%$ des observations et à remplacer la valeur d'un mois choisi au hasard par une valeur manquante. Si nécessaire, le jeu de données "data étude clinique 2.csv" pourra être utilisé.
+
+
+##### 1. Création de la base de données**
+
+```{r warning=FALSE}
+data_5percent_missing = prodNA(data_etude_clinique.csv[,-1],noNA=0.05)  
+```
+
+Les données manquantes sont considérées comme manquantes de manière aléatoire (MCAR) lorsque leur absence est due au hasard et qu'elle n'est pas liée à d'autres variables, que celles-ci soient observées ou non. Autrement dit, il n'y a pas de corrélation entre le fait qu'une donnée soit manquante et les autres variables dans le jeu de données.
+
+```{r warning=FALSE, message=FALSE}
+mcar_test(data_5percent_missing)
+```
+
+La p-valeur obtenue pour les données avec 5% de valeurs manquantes est plus grande que celle pour les données avec 5% de valeurs manquantes ajoutées de manière non-aléatoire. Cela suggère que les valeurs manquantes dans ces données sont de type MCAR (manquantes complètement au hasard).
+
+```{r warning=FALSE, message=FALSE}
+vis_miss(data_5percent_missing)
+```
+
+**Biais des données manquantes dans l'étude clinique : analyse avec valeurs manquantes**
+
+Nous allons étudier l'impact des valeurs manquantes sur nos données. Pour cela, nous allons refaire notre analyse sur un nouveau jeu de données obtenu en remplaçant 5% des valeurs de notre jeu de données d'origine par des valeurs manquantes.
+
+```{r warning=FALSE, message=FALSE}
+# Supprimer les lignes de data_5percent_missing qui contiennent des valeurs manquantes
+data_5percent_missing <- na.omit(data_5percent_missing)
+
+# Calculer les moyennes de chaque colonne de la deuxième colonne jusqu'à la dernière colonne de data_5percent_missing
+moyennes_effets_par_mois_test <- colMeans(data_5percent_missing)
+
+# Créer un data.frame Biais avec les colonnes "mois" et "biais"
+Biais <- data.frame(mois = mois,
+                    biais = moyennes_effets_par_mois_test - moyennes_effets_par_mois)
+Biais$mois <- factor(Biais$mois, levels = unique(Biais$mois))
+
+ggplot(Biais, aes(x = mois, y = biais)) +
+  geom_point(size = 3, color = "darkblue", alpha = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey50", size = 0.8) +
+  labs(x = "Mois", y = "Biais de l'effet secondaire",
+       title = "Biais des effets secondaires par mois") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title = element_text(size = 12, face = "bold"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) 
+```
+
+Lorsqu'on inclut des valeurs manquantes dans le calcul de la moyenne, cela réduit la taille de l'échantillon et peut donc diminuer la précision de l'estimation de cette moyenne. De plus, si les valeurs manquantes sont concentrées dans les observations ayant des valeurs plus élevées, cela peut également réduire la moyenne. Autrement dit, la présence de valeurs manquantes peut entraîner une sous-estimation de la moyenne.
+
+```{r warning=FALSE, message=FALSE}
+boxplot(data_5percent_missing,
+        main = "Force des effets secondaires par mois",
+        xlab = "Mois",
+        ylab = "Force des effets secondaires",
+        col = "lightblue",
+        border = "gray",
+        notch = TRUE,
+        boxwex = 0.5,
+        outpch = 20,
+        cex = 0.8)
+```
+
+En retirant les valeurs manquantes de notre échantillon, nous avons calculé les moyennes de chaque mois pour les effets secondaires. Cependant, nous avons remarqué que les moyennes obtenues sont différentes de celles calculées sur le fichier initial. Cela peut s'expliquer par le fait que le retrait des valeurs manquantes peut introduire un biais dans le calcul des moyennes.
+
+
+##### 2. Avec les données data_etude_clinique.csv_2
+
+```{r warning=FALSE, message=FALSE}
+vis_miss(data_etude_clinique.csv_2)
+```
+
+```{r message=FALSE, warning=FALSE}
+mcar_test(data_etude_clinique.csv_2)
+```
+
+En examinant les données du fichier, nous avons remarqué que la $p_{value}$ est supérieure à $5\%$, ce qui suggère que les données manquantes sont susceptibles d'être aléatoires et ne dépendent pas des valeurs manquantes elles-mêmes ni des valeurs observées. Cependant, cette conclusion ne peut être tirée que si toutes les hypothèses et les conditions nécessaires sont remplies, et que l'analyse statistique est effectuée de manière appropriée.
+
+
+#### 3. Données `data_etude_clinique.csv_3`
+
+Nous avons un ensemble de données qui ne contient pas de valeurs manquantes. Nous menons une étude où les participants peuvent décider d'arrêter leur participation à tout moment avec une probabilité $p$, qui dépend de leur groupe d'âge. Une fois qu'un participant arrête l'étude, les données des mois suivants sont considérées comme manquantes. Nous cherchons à comprendre l'impact de ces valeurs manquantes sur l'ensemble de données. Les probabilités d'arrêts varient selon le groupe d'âge, on a :
+
+$$p_{18−30} = 0.1$$
+
+$$p_{30−50} = 0.01$$
+
+$$p_{50-.} = 0.01$$
+
+##### 1. le fichier data_etude_clinique_3.csv
+
+Nous avons choisi le fichier data_etude_clinique_3.csv pour notre analyse. Avant de commencer toute analyse, il est important de déterminer combien de valeurs manquantes il y a dans ce jeu de données. Les valeurs manquantes sont des données qui manquent ou qui ne sont pas disponibles dans le fichier, et leur identification est une étape cruciale pour assurer la validité de l'analyse. Nous allons donc effectuer une analyse complète du fichier pour identifier toutes les données manquantes.
+
+```{r warning=FALSE, message=FALSE}
+sum(is.na(data_etude_clinique.csv_3)) # Nombre de NA
+```
+
+Avant de continuer notre analyse, il est crucial de déterminer le type de données manquantes dans notre jeu de données. Pour cela, nous allons utiliser la fonction `mcar_test` de la bibliothèque `naniar` pour identifier si les données manquantes sont complètement aléatoires (MCAR).
+
+```{r message=FALSE, warning=FALSE}
+mcar_test(data_etude_clinique.csv_3)
+```
+
+
+La valeur de la p-valeur est de $0,09205535$. Étant donné que cette valeur est supérieure au seuil de signification couramment utilisé de $5\%$, nous pouvons rejeter l'hypothèse nulle selon laquelle les données ne sont pas manquantes de manière aléatoire et conclure que les données sont MCAR (manquantes complètement au hasard). Cependant, étant donné que la p-valeur est proche du seuil de signification, il est important de réaliser d'autres tests pour éviter toute erreur de type I (rejeter à tort l'hypothèse nulle).
+
+
+**Biais des données manquantes dans l'étude clinique : analyse avec valeurs manquantes**
+
+Il est très important de réaliser une analyse détaillée des biais afin de mieux les comprendre et de les minimiser autant que possible.
+
+```{r warning=FALSE, message=FALSE}
+# Supprimer les lignes de data_5percent_missing qui contiennent des valeurs manquantes
+data_etude_clinique.3 <- na.omit(data_etude_clinique.csv_3[,2:ncol(data_etude_clinique.csv_3)])
+moyennes_effets_par_mois_test <- colMeans(data_etude_clinique.3)
+
+# Créer un data.frame Biais avec les colonnes "mois" et "biais"
+Biais <- data.frame(mois = mois,
+                    biais =  moyennes_effets_par_mois_test - moyennes_effets_par_mois)
+Biais$mois <- factor(Biais$mois, levels = unique(Biais$mois))
+
+ggplot(Biais, aes(x = mois, y = biais)) +
+  geom_point(size = 3, color = "darkblue", alpha = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey50", size = 0.8) +
+  labs(x = "Mois", y = "Biais de l'effet secondaire",
+       title = "Biais des effets secondaires par mois") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title = element_text(size = 12, face = "bold"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) 
+```
+
+```{r warning=FALSE, message=FALSE}
+boxplot(data_etude_clinique.3,
+        main = "Force des effets secondaires par mois",
+        xlab = "Mois",
+        ylab = "Force des effets secondaires",
+        col = "lightblue",
+        border = "gray",
+        notch = TRUE,
+        boxwex = 0.5,
+        outpch = 20,
+        cex = 0.8)
+```
+
+Lorsqu'il y a des valeurs manquantes dans un jeu de données, le fait de retirer ces valeurs peut parfois affecter les statistiques descriptives telles que la moyenne. En effet, si les valeurs manquantes sont systématiquement plus petites ou plus grandes que les autres valeurs dans le jeu de données, cela peut influencer la moyenne calculée. Ainsi, retirer ces valeurs manquantes peut conduire à une augmentation ou une diminution de la moyenne des valeurs restantes en fonction de leur nature.
+
+
+##### 2. Jeu de données construits
+
+Pour la suite, nous allons fabriquer une base de données qui a des valeurs manquantes suivants l'âge et les probabilités.
+
+```{r message=FALSE, warning=FALSE}
+# Charger les données à transformer
+data_etude_clinique_construits <- data_etude_clinique.csv
+# Trouver les indices des observations avec une variable "AgeGroup" égale à "18-30"
+indices_18_30 <- which(data_etude_clinique_construits$AgeGroup == "18-30")
+# Trouver les indices des observations avec une variable "AgeGroup" différente de "18-30"
+indices_rest <- which(data_etude_clinique_construits$AgeGroup != "18-30")
+# Boucle à travers les observations avec une variable "AgeGroup" égale à "18-30"
+for (i in indices_18_30) {
+  # Boucle à travers les colonnes à partir de la deuxième colonne
+  for (j in 2:13) {
+    # Si le nombre aléatoire est supérieur à 0.1, remplacer 
+    # la valeur de la cellule correspondante par NA
+    if (runif(1) < 0.1) {
+      data_etude_clinique_construits[i,j] <- NA
+    }
+  }
+}
+
+# Boucle à travers les observations avec une variable "AgeGroup" différente de "18-30"
+for (i in indices_rest) {
+  # Boucle à travers les colonnes à partir de la deuxième colonne
+  for (j in 2:13) {
+    # Si le nombre aléatoire est supérieur à 0.01, remplacer la 
+    # valeur de la cellule correspondante par NA
+    if (runif(1) < 0.01) {
+      data_etude_clinique_construits[i,j] <- NA
+    }
+  }
+}
+#Le nombre de valeur propre.
+sum(is.na(data_etude_clinique_construits))
+```
+
+```{r message=FALSE, warning=FALSE}
+mcar_test(data_etude_clinique_construits)
+```
+
+La valeur de la p-value est supérieure à $5\%$, ce qui indique que les valeurs manquantes dans les données peuvent être considérées comme manquantes complètement au hasard (MCAR). Cela signifie qu'il n'y a pas de relation systématique entre les valeurs manquantes et les autres variables dans les données.
+
+**Biais des données manquantes dans l'étude clinique : analyse avec valeurs manquantes**
+
+Il est crucial de mener une étude approfondie des biais pour mieux les comprendre et les éviter autant que possible.
+
+```{r warning=FALSE, message=FALSE}
+data_etude_clinique_construits <- na.omit(data_etude_clinique_construits[,2:ncol(data_etude_clinique_construits)])
+
+moyennes_effets_par_mois_test <- colMeans(data_etude_clinique_construits)
+
+# Créer un data.frame Biais avec les colonnes "mois" et "biais"
+Biais <- data.frame(mois = mois,
+                    biais =  moyennes_effets_par_mois_test - moyennes_effets_par_mois)
+Biais$mois <- factor(Biais$mois, levels = unique(Biais$mois))
+
+ggplot(Biais, aes(x = mois, y = biais)) +
+  geom_point(size = 3, color = "darkblue", alpha = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey50", size = 0.8) +
+  labs(x = "Mois", y = "Biais de l'effet secondaire",
+       title = "Biais des effets secondaires par mois") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title = element_text(size = 12, face = "bold"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) 
+```
+
+On observe une decroissance de la moyenne en fonction du mois.
+
+```{r warning=FALSE, message=FALSE}
+boxplot(data_etude_clinique_construits,
+        main = "Force des effets secondaires par mois",
+        xlab = "Mois",
+        ylab = "Force des effets secondaires",
+        col = "lightblue",
+        border = "gray",
+        notch = TRUE,
+        boxwex = 0.5,
+        outpch = 20,
+        cex = 0.8)
+```
+
+#### 4. Imputation des données
+
+Lorsque des données contiennent des valeurs manquantes, il est important de les imputer pour pouvoir réaliser une analyse de données complète. Il existe diverses méthodes pour remplacer ces valeurs manquantes, chacune ayant des avantages et des inconvénients. Afin d'évaluer les effets de différentes méthodes d'imputation, nous avons procédé à l'imputation des valeurs manquantes selon plusieurs approches et comparé les résultats obtenus.
+
+**1. Par la moyenne**
+
+Nous allons remplacer les valeurs manquantes par la moyenne.
+
+```{r warning=FALSE, message=FALSE}
+Moyenne = mean(colMeans(na.omit(data_etude_clinique.csv_3)[,2:13]))
+data_replace_Moyenne = replace(data_etude_clinique.csv_3, is.na(data_etude_clinique.csv_3),Moyenne)
+```
+
+**Etude du biais**
+
+```{r message=FALSE, warning=FALSE}
+moyennes_effets_par_mois_test <- colMeans(data_replace_Moyenne[, 2:ncol(data_replace_Moyenne)])
+Biais <- data.frame(mois = mois,
+                    biais = moyennes_effets_par_mois_test - moyennes_effets_par_mois)
+Biais$mois <- factor(Biais$mois, levels = unique(Biais$mois)[order(unique(Biais$mois))])
+
+# Tracer les points en fonction des mois dans l'ordre alphabétique
+ggplot(Biais, aes(x = mois, y = biais)) +
+  geom_point(size = 3, color = "darkblue", alpha = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey50", size = 0.8) +
+  labs(x = "Mois", y = "Biais de l'effet secondaire",
+       title = "Biais des effets secondaires par mois") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title = element_text(size = 12, face = "bold"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) 
+```
+
+```{r warning=FALSE, message=FALSE}
+boxplot(data_replace_Moyenne[,2:ncol(data_replace_Moyenne)],
+        main = "Force des effets secondaires par mois",
+        xlab = "Mois",
+        ylab = "Force des effets secondaires",
+        col = "lightblue",
+        border = "gray",
+        notch = TRUE,
+        boxwex = 0.5,
+        outpch = 20,
+        cex = 0.8)
+```
+
+**2. Par la moyenne par groupe d'âge**
+
+Nous allons remplacer les valeurs manquantes par la moyenne.
+
+```{r warning=FALSE, message=FALSE}
+data_replace_Moyenne_age <- data_etude_clinique.csv_3 %>% 
+  group_by(AgeGroup) %>% 
+  mutate(across(where(is.numeric), ~replace_na(.x, mean(.x, na.rm = TRUE))))
+```
+
+**Etude du biais**
+
+```{r message=FALSE, warning=FALSE}
+moyennes_effets_par_mois_test <- colMeans(data_replace_Moyenne_age[, 2:ncol(data_replace_Moyenne_age)])
+Biais <- data.frame(mois = mois,
+                    biais = moyennes_effets_par_mois_test - moyennes_effets_par_mois)
+# Convertir "mois" en un facteur ordonné selon l'ordre alphabétique
+Biais$mois <- factor(Biais$mois, levels = unique(Biais$mois)[order(unique(Biais$mois))])
+
+ggplot(Biais, aes(x = mois, y = biais)) +
+  geom_point(size = 3, color = "darkblue", alpha = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey50", size = 0.8) +
+  labs(x = "Mois", y = "Biais de l'effet secondaire",
+       title = "Biais des effets secondaires par mois") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title = element_text(size = 12, face = "bold"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) 
+```
+
+```{r warning=FALSE, message=FALSE}
+boxplot(data_replace_Moyenne_age[,2:ncol(data_replace_Moyenne_age)],
+        main = "Force des effets secondaires par mois",
+        xlab = "Mois",
+        ylab = "Force des effets secondaires",
+        col = "lightblue",
+        border = "gray",
+        notch = TRUE,
+        boxwex = 0.5,
+        outpch = 20,
+        cex = 0.8)
+```
+
+On remarque que les moyennes sont presque les mêmes.
+
+**3. En utilisant la fonction kNN du package VIM**
+
+Nous allons remplacer les valeurs manquantes en utilisant la fonction kNN du package VIM.
+La fonction kNN du package VIM permet d'imputer les valeurs manquantes en utilisant l'approche des k-plus proches voisins.
+
+```{r warning=FALSE, message=FALSE}
+data_replace_kNN_VIM = kNN(data_etude_clinique.csv_3, k = 7)
+```
+
+**Etude du biais**
+
+```{r message=FALSE, warning=FALSE}
+data_replace_kNN_VIM <- data_replace_kNN_VIM[ ,2:13]
+moyennes_effets_par_mois_test <- colMeans(data_replace_kNN_VIM)
+Biais <- data.frame(mois = mois,
+                    biais = moyennes_effets_par_mois_test - moyennes_effets_par_mois)
+# Convertir "mois" en un facteur ordonné selon l'ordre alphabétique
+Biais$mois <- factor(Biais$mois, levels = unique(Biais$mois)[order(unique(Biais$mois))])
+
+ggplot(Biais, aes(x = mois, y = biais)) +
+  geom_point(size = 3, color = "darkblue", alpha = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey50", size = 0.8) +
+  labs(x = "Mois", y = "Biais de l'effet secondaire",
+       title = "Biais des effets secondaires par mois") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title = element_text(size = 12, face = "bold"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+
+```
+
+```{r warning=FALSE, message=FALSE}
+boxplot(data_replace_kNN_VIM,
+        main = "Force des effets secondaires par mois",
+        xlab = "Mois",
+        ylab = "Force des effets secondaires",
+        col = "lightblue",
+        border = "gray",
+        notch = TRUE,
+        boxwex = 0.5,
+        outpch = 20,
+        cex = 0.8)
+```
+
+
+#### 4. Données `data_etude_clinique.csv_4`
+
+Dans cette section, nous allons examiner un cas de données manquantes de type non aléatoire (MNAR) où les valeurs manquantes sont liées à la variable d'intérêt, à savoir la gravité des effets secondaires. Nous supposons qu'un certain nombre de participants abandonnent l'étude en cours de route, et que chaque mois, chaque participant a une probabilité p de quitter l'étude. À partir du mois où le participant quitte l'étude, les données sont considérées comme manquantes. En outre, la probabilité de quitter l'étude dépend de la gravité des effets secondaires : plus elle est importante, plus la probabilité de quitter l'étude est élevée.
+
+Nous allons commencer par etudier le fichiers `data_etude_clinique.csv_4`
+
+```{r warning=FALSE, message=FALSE}
+mcar_test(data_etude_clinique.csv_4)
+sum(is.na(data_etude_clinique.csv_4))
+# 
+```
+
+Plus de $50\%$ des données sont absentes ou manquantes.
+
+Le paragraphe signifie que la p-value est très faible, ce qui indique que les valeurs manquantes ne sont pas aléatoires (c'est-à-dire ne suivent pas un processus MCAR). En d'autres termes, il y a une tendance systématique à la façon dont les données manquantes se produisent, ce qui suggère que les données manquantes peuvent biaiser les résultats de l'analyse.
+
+**Biais des données manquantes dans l'étude clinique : analyse avec valeurs manquantes**
+
+Nous allons etudier le biais
+
+```{r warning=FALSE, message=FALSE}
+data_etude_clinique.4 <- na.omit(data_etude_clinique.csv_4)
+moyennes_effets_par_mois_test <- colMeans(data_etude_clinique.4[, 2:ncol(data_etude_clinique.4)])
+Biais <- data.frame(mois = mois, biais = moyennes_effets_par_mois_test - moyennes_effets_par_mois)
+
+ggplot(Biais, aes(x = mois, y = biais)) +
+  geom_point(size = 3, color = "darkblue", alpha = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey50", size = 0.8) +
+  labs(x = "Mois", y = "Biais de l'effet secondaire",
+       title = "Biais des effets secondaires par mois") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title = element_text(size = 12, face = "bold"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+```
+D'où la presence des baiis assez élévés 
+
+```{r warning=FALSE, message=FALSE}
+boxplot(data_etude_clinique.4[2:13],
+        main = "Force des effets secondaires par mois",
+        xlab = "Mois",
+        ylab = "Force des effets secondaires",
+        col = "lightblue",
+        border = "gray",
+        notch = TRUE,
+        boxwex = 0.5,
+        outpch = 20,
+        cex = 0.8)
+```
+
+On remarque deja des difference sur les graphiques.
+
+Nous allons faires des mutations pour mieux etudiers la repartiions des valeurs propres.
+
+**1. Par la moyenne**
+
+Nous allons remplacer les valeurs manquantes par la moyenne.
+
+```{r warning=FALSE, message=FALSE}
+Moyenne = mean(colMeans(na.omit(data_etude_clinique.csv_4)[,2:13]))
+data_replace_Moyenne = replace(data_etude_clinique.csv_4, is.na(data_etude_clinique.csv_4),Moyenne)
+```
+
+**Etude du biais**
+
+```{r message=FALSE, warning=FALSE}
+moyennes_effets_par_mois_test <- colMeans(data_replace_Moyenne[, 2:ncol(data_replace_Moyenne)])
+Biais <- data.frame(mois = mois,
+                    biais = moyennes_effets_par_mois_test - moyennes_effets_par_mois)
+Biais$mois <- factor(Biais$mois, levels = unique(Biais$mois)[order(unique(Biais$mois))])
+ggplot(Biais, aes(x = mois, y = biais)) +
+  geom_point(size = 3, color = "darkblue", alpha = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey50", size = 0.8) +
+  labs(x = "Mois", y = "Biais de l'effet secondaire",
+       title = "Biais des effets secondaires par mois") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title = element_text(size = 12, face = "bold"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+```
+
+
+```{r warning=FALSE, message=FALSE}
+boxplot(data_replace_Moyenne[2:13],
+        main = "Force des effets secondaires par mois",
+        xlab = "Mois",
+        ylab = "Force des effets secondaires",
+        col = "lightblue",
+        border = "gray",
+        notch = TRUE,
+        boxwex = 0.5,
+        outpch = 20,
+        cex = 0.8)
+```
+
+
+**2. Par la moyenne par groupe d'âge**
+
+Nous allons remplacer les valeurs manquantes par la moyenne.
+
+```{r warning=FALSE, message=FALSE}
+data_replace_Moyenne_age <- data_etude_clinique.csv_4 %>% 
+  group_by(AgeGroup) %>% 
+  mutate(across(where(is.numeric), ~replace_na(.x, mean(.x, na.rm = TRUE))))
+```
+
+**Etude du biais**
+
+```{r message=FALSE, warning=FALSE}
+moyennes_effets_par_mois_test <- colMeans(data_replace_Moyenne_age[, 2:ncol(data_replace_Moyenne_age)])
+Biais <- data.frame(mois = mois,
+                    biais = moyennes_effets_par_mois_test - moyennes_effets_par_mois)
+# Convertir "mois" en un facteur ordonné selon l'ordre alphabétique
+Biais$mois <- factor(Biais$mois, levels = unique(Biais$mois)[order(unique(Biais$mois))])
+
+ggplot(Biais, aes(x = mois, y = biais)) +
+  geom_point(size = 3, color = "darkblue", alpha = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey50", size = 0.8) +
+  labs(x = "Mois", y = "Biais de l'effet secondaire",
+       title = "Biais des effets secondaires par mois") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title = element_text(size = 12, face = "bold"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank()) 
+```
+
+```{r warning=FALSE, message=FALSE}
+boxplot(data_replace_Moyenne_age[,2:ncol(data_replace_Moyenne_age)],
+        main = "Force des effets secondaires par mois",
+        xlab = "Mois",
+        ylab = "Force des effets secondaires",
+        col = "lightblue",
+        border = "gray",
+        notch = TRUE,
+        boxwex = 0.5,
+        outpch = 20,
+        cex = 0.8)
+```
+
+On remarque que les moyennes sont presque les mêmes.
+
+**3. En utilisant la fonction kNN du package VIM**
+
+Nous allons remplacer les valeurs manquantes en utilisant la fonction kNN du package VIM.
+La fonction kNN du package VIM permet d'imputer les valeurs manquantes en utilisant l'approche des k-plus proches voisins.
+
+```{r warning=FALSE, message=FALSE}
+data_replace_kNN_VIM = kNN(data_etude_clinique.csv_4, k = 5)
+```
+
+**Etude du biais**
+
+```{r message=FALSE, warning=FALSE}
+data_replace_kNN_VIM <- data_replace_kNN_VIM[ ,2:13]
+moyennes_effets_par_mois_test <- colMeans(data_replace_kNN_VIM)
+Biais <- data.frame(mois = mois,
+                    biais = moyennes_effets_par_mois_test - moyennes_effets_par_mois)
+Biais$mois <- factor(Biais$mois, levels = unique(Biais$mois)[order(unique(Biais$mois))])
+
+ggplot(Biais, aes(x = mois, y = biais)) +
+  geom_point(size = 3, color = "darkblue", alpha = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed", color = "grey50", size = 0.8) +
+  labs(x = "Mois", y = "Biais de l'effet secondaire",
+       title = "Biais des effets secondaires par mois") +
+  theme_classic() +
+  theme(plot.title = element_text(hjust = 0.5, face = "bold", size = 14),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title = element_text(size = 12, face = "bold"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank())
+
+```
+
+```{r warning=FALSE, message=FALSE}
+boxplot(data_replace_kNN_VIM,
+        main = "Force des effets secondaires par mois",
+        xlab = "Mois",
+        ylab = "Force des effets secondaires",
+        col = "lightblue",
+        border = "gray",
+        notch = TRUE,
+        boxwex = 0.5,
+        outpch = 20,
+        cex = 0.8)
+```
+
+### III. Conclusion
+
+Après avoir examiné les valeurs manquantes dans notre ensemble de données, nous avons constaté que le type de mécanisme manquant était MNAR, ce qui indique que les valeurs manquantes sont liées à des valeurs qui ne sont pas observées. Nous avons également observé que l'imputation par la moyenne ou par groupe d'âge avait une incidence sur le biais de notre variable d'intérêt. Toutefois, l'utilisation de l'imputation kNN n'a pas eu d'impact significatif sur le biais. Il est crucial de tenir compte des valeurs manquantes et de choisir une méthode d'imputation appropriée pour minimiser l'impact sur les résultats de l'analyse.
+
+
+---
+
+
+## Partie B : Diverses statistiques sur la France
+
+
+### I. Introduction
+
+Dans cette étude, nous allons examiner trois indicateurs importants pour la France : la consommation d'énergie, la population et le PIB, en utilisant des données provenant de sources fiables telles que l'Agence internationale de l'énergie et la Banque mondiale. En utilisant des méthodes statistiques, nous allons analyser et visualiser ces données pour mieux comprendre les tendances et les relations entre ces indicateurs clés. L'objectif est d'aider à éclairer les politiques énergétiques, économiques et sociales en France, et de fournir des informations utiles aux décideurs politiques, aux chercheurs et au grand public.
+
+### II. Chargement des données et traitement des données
+
+**Toutes les données France**
+
+```{r warning=FALSE, message=FALSE}
+# Chargement des données  ###################
+TES <- read_csv("https://raw.githubusercontent.com/BaldeAicha/Document_projet/main/TES.csv") %>% as.data.frame()
+
+Population<-read_csv("https://raw.githubusercontent.com/BaldeAicha/Document_projet/main/API_v2.csv", skip = 4) %>%  
+  as.data.frame() %>% select(-ncol(.)) %>% na.omit() %>% 
+  rename(Country = "Country Name",
+                Code = "Country Code",
+                Indicator_Name = "Indicator Name",
+                Indicator_Code = "Indicator Code") %>% as.tibble()
+
+
+Produit_I_brute <- read_csv("https://raw.githubusercontent.com/BaldeAicha/Document_projet/main/API_v2_5371757.csv", skip = 4) %>%
+  as.data.frame() %>% select(-ncol(.)) %>% na.omit() %>% 
+  rename(Country = "Country Name",
+                Code = "Country Code",
+                Indicator_Name = "Indicator Name",
+                Indicator_Code = "Indicator Code") %>% as.tibble()
+```
+
+
+**Mettre les données sous forme `tidy`**
+
+```{r message=FALSE, warning=FALSE}
+# TES_tidy
+TES_tidy <- TES %>%
+  select(-Units) %>%
+  pivot_longer(cols = -Year, names_to = "Energies", values_to = "consommation")
+
+# Population_tidy
+Population_tidy <- Population %>%
+  select(-c(Code, Indicator_Name, Indicator_Code)) %>%
+  pivot_longer(cols = -Country, names_to = "Year", values_to = "Population")
+
+# Produit_I_brute_tidy
+Produit_I_brute_tidy <- Produit_I_brute %>%
+  select(-c(Code, Indicator_Name, Indicator_Code)) %>%
+  pivot_longer(cols = -Country, names_to = "Year", values_to = "PIB")
+
+```
+
+
+**Données sur la consommation énergetique de la France**
+
+L'examen des données individuellement est une étape importante dans l'analyse de données. Cela implique de regarder les valeurs des différentes variables pour chaque observation dans l'ensemble de données.
+
+```{r warning=FALSE, message=FALSE}
+# Créer un graphique en groupant les données par année et en coloriant 
+# selon le type d'énergie
+TES_tidy %>% 
+  group_by(Energies) %>% 
+  ggplot() +
+  # Définir les variables x et color en fonction de la 
+  # colonne "consommation" et "Energies"
+  aes(x = Year, y = consommation, color=Energies) +
+  # Ajouter une couche de points au graphique
+  geom_line() +
+  labs(title = "Consommation de l'energie en fonction de l'année", 
+       x = "année", y="Consommation")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+TES_tidy %>% 
+  group_by(Energies) %>% 
+  ggplot() +
+  # Définir les variables x et color en fonction de la 
+  # colonne "consommation" et "Energies"
+  aes(x = Year, y = consommation, color=Energies) +
+  # Ajouter une couche de points au graphique
+  geom_line() +
+  scale_y_log10() +
+  labs(x = "année", y="Consommation",
+    title = "Consommation de l'energie en fonction de l'année en echelle log", 
+       )+theme(plot.title = element_text(hjust = 0.5))
+```
+
+On remarque une augmentation de la consommation des energies renouvelable en France. Elle peut s'expliquer par plusieurs facteurs. Tout d'abord, il y a une prise de conscience croissante de l'importance de lutter contre le changement climatique et de réduire notre dépendance aux énergies fossiles. Les politiques publiques ont également joué un rôle important en soutenant le développement des énergies renouvelables à travers des programmes d'incitation et des subventions. Par exemple, la loi de transition énergétique pour la croissance verte a fixé des objectifs ambitieux pour la part des énergies renouvelables dans la production d'électricité en France. Enfin, les progrès technologiques ont rendu les énergies renouvelables de plus en plus compétitives par rapport aux énergies fossiles, ce qui a encouragé leur adoption à grande échelle.
+
+**Données sur la population de la France**
+
+```{r warning=FALSE, message=FALSE}
+# Charger le fichier CSV en spécifiant le chemin d'accès et en sautant les 4 
+# premières lignes. Sélectionner toutes les colonnes sauf la colonne "...67" 
+# qui ne contient pas de données pertinentes
+# Supprimer toutes les lignes qui contiennent des valeurs manquante
+# Renommer les colonnes pour avoir des noms plus clairs
+
+
+Population_tidy %>% 
+  filter(Country == "France", Year %in% seq(1960, 2021,8)) %>% 
+  select(-Country) %>% 
+  ggplot() +
+  aes(x = Year, y = Population) +
+  geom_point() +
+  labs(title ="Population de la France par année", x = "Année", y="Population")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+On voit l'accroissement de la population.
+
+**Données sur le PIB de la France**
+
+```{r warning=FALSE, message=FALSE}
+# Charger le fichier CSV en spécifiant le chemin d'accès et en sautant les 4 
+# premières lignes. Sélectionner toutes les colonnes sauf la derniere colonne 
+# qui ne contient pas de données pertinentes
+# Supprimer toutes les lignes qui contiennent des valeurs manquante
+# Renommer les colonnes pour avoir des noms plus clairs
+
+
+
+Produit_I_brute_tidy %>% 
+  filter(Country == "France", Year %in% seq(1960, 2021,8)) %>% 
+  select(-Country) %>% 
+  ggplot() +
+  aes(x = Year, y = PIB) +
+  geom_point() +
+  labs(title ="PIB de la France par année", x = "Année", y="PIB")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+Même croissance.
+
+**Extraction des données**
+
+```{r warning=FALSE, message=FALSE}
+# Les données du la population francaise par année
+Population_tidy_FR=Population_tidy %>% 
+  filter(Country == "France")
+
+# Les données du le PIB francais par année
+Produit_I_brute_tidy_FR=Produit_I_brute_tidy%>% 
+  filter(Country == "France")
+```
+
+
+Le PIB par habitant est un indicateur économique qui permet d'estimer la richesse moyenne d'un pays en prenant en compte sa population. Il est calculé en divisant le PIB total d'un pays par le nombre d'habitants. En d'autres termes, il permet d'évaluer la quantité de production économique générée par chaque individu d'un pays.
+
+```{r warning=FALSE, message=FALSE}
+Data_FR=Population_tidy_FR %>% inner_join(Produit_I_brute_tidy_FR) %>% select(-Country) %>% 
+  mutate(PIB.HBT = PIB/Population)
+head(Data_FR, 2)
+```
+
+```{r warning=FALSE, message=FALSE}
+Data_FR %>% filter(Year %in% seq(1960, 2021, 5)) %>%
+  ggplot() +
+  aes(x = Year, y = PIB.HBT) +
+  geom_point() + labs(title = "PIB/Habitant en France", y="PIB/Habitant")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+
+Il est en effet possible de remarquer une corrélation positive entre la population et le PIB en France, c'est-à-dire que lorsque la population augmente, le PIB a tendance à augmenter également.
+
+Cependant, il est important de noter que la corrélation n'implique pas toujours une relation de causalité. Il est possible que d'autres facteurs puissent également influencer le PIB, indépendamment de la population. De plus, il est possible que la relation entre la population et le PIB soit non-linéaire ou que d'autres variables interviennent dans cette relation.
+
+Il est donc important de rester prudent dans l'interprétation des résultats et de ne pas tirer de conclusions hâtives en se basant uniquement sur la corrélation observée. Une analyse plus approfondie des données et des facteurs sous-jacents est nécessaire pour mieux comprendre la relation entre la population et le PIB en France.
+
+**Ajustement d'un modèle linéaire au PIB par habitant**
+
+Fitter un modèle linéaire au PIB par habitant en fonction de l'année permet de déterminer la tendance de croissance de l'économie du pays au fil du temps. Le PIB par habitant est une mesure de la richesse moyenne d'un pays, tandis que l'année représente le temps écoulé. En ajustant un modèle linéaire, nous pouvons calculer la pente de la ligne de régression, qui représente la vitesse à laquelle le PIB par habitant augmente ou diminue chaque année. Cette information peut être utile pour les économistes, les décideurs politiques et les investisseurs pour prendre des décisions éclairées sur l'économie du pays.
+
+```{r warning=FALSE, message=FALSE}
+modele <- lm(PIB.HBT ~ as.numeric(Year), data = Data_FR)
+summary(modele)
+```
+
+```{r warning=FALSE, message=FALSE}
+DATA = data.frame(Predict=predict(modele, newdata = data.frame(Year = 1960:2021)),
+                 real=Data_FR$PIB.HBT)
+```
+
+```{r warning=FALSE, message=FALSE}
+ggplot(data = DATA) +
+  geom_line(mapping = aes(x = 1960:2021, y = Predict, color = "Predict")) +
+  geom_point(mapping = aes(x = 1960:2021, y = real, color = "Real")) +
+  scale_color_manual(values = c("Predict" = "blue", "Real" = "red")) +
+  labs(x = "Année", y = "PIB/habitant", 
+       title = "Prévisions vs. valeurs réelles")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+**Modele croissance exponetielle**
+
+Notez que le modèle ajusté ici est de la forme $PIB.HBT \sim e^{(a + b \times Year)}$ où $a$ est l'intercept et $b$ est la pente de la droite de régression exponentielle.
+
+```{r warning=FALSE, message=FALSE}
+# Ajuster le modèle de croissance exponentielle
+modele <- glm(PIB.HBT ~ as.numeric(Year), data = Data_FR, family = Gamma(link = "log"))
+summary(modele)
+```
+
+```{r warning=FALSE, message=FALSE}
+newdata <- data.frame(Year = 1960:2021)
+predictions <- predict(modele, newdata = newdata, type = "response")
+```
+
+```{r warning=FALSE, message=FALSE}
+DATA.EXP= data.frame(Predict=predictions,
+                 Real=Data_FR$PIB.HBT)
+
+ggplot(data = DATA.EXP) +
+  geom_line(mapping = aes(x = 1960:2021, y = Predict, color = "Predict")) +
+  geom_point(mapping = aes(x = 1960:2021, y = Real, color = "Real")) +
+  scale_color_manual(values = c("Predict" = "blue", "Real" = "red")) +
+  labs(x = "Année", y = "PIB/habitant", 
+       title = "Prévisions vs. valeurs réelles (croissance exponetielle)")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+**La consommation  énergetique totale (toutes sources confondues)**.
+
+On retire les varaibles qualitatives.
+
+```{r warning=FALSE, message=FALSE}
+TES %>% 
+  select(-Year, -Units) %>% 
+  summarise_all(sum)
+```
+
+**Calculer et afficher la consommation énergétique totale par habitant.**
+
+```{r warning=FALSE, message=FALSE}
+CONSO = TES %>% 
+  select(-Units) %>% 
+  pivot_longer(cols=-Year, names_to = "Energy_source", values_to = "Value") %>% 
+  group_by(Year) %>% 
+  select(Value) %>% 
+  summarise_all(sum)
+
+Popu_France.1 = data.frame(Year = 1960:2021, 
+                           Population = Data_FR$Population)
+
+Cons.Ener.HBT=CONSO %>% 
+  inner_join(Popu_France.1) %>% 
+  mutate(Ener.BHT = Value/Population)
+
+ggplot(Cons.Ener.HBT, aes(x = Year, y = Ener.BHT)) +
+  geom_line() + 
+  labs(title = "Consommation d'energie totale par habitant", y="Energie/Habitant")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+Il est en effet possible de constater une baisse de la consommation d'énergie par habitant en France ces dernières années. Cela peut s'expliquer par plusieurs facteurs, tels que :
+
+- Les efforts de transition énergétique : ces dernières années, la France a mis en place des politiques pour favoriser les énergies renouvelables et réduire sa dépendance aux énergies fossiles, ce qui peut avoir contribué à la baisse de la consommation d'énergie.
+
+- Les avancées technologiques : les nouvelles technologies sont de plus en plus efficaces et économes en énergie, ce qui peut également avoir participé à la baisse de la consommation.
+
+- Les changements de comportements : les citoyens sont de plus en plus sensibilisés à l'importance de préserver l'environnement, et peuvent donc avoir changé leurs comportements en faveur d'une consommation plus responsable.
+
+Cependant, il est important de noter que la consommation d'énergie totale continue d'augmenter en France, en raison de la croissance démographique. Il est donc nécessaire de poursuivre les efforts de transition énergétique pour réduire la consommation d'énergie globale et limiter l'impact sur l'environnement.  
+
+### III. Conclusion
+
+En conclusion, la baisse de la consommation d'énergie par habitant en France ces dernières années peut s'expliquer par un ensemble de facteurs, notamment les politiques de transition énergétique, les avancées technologiques et les changements de comportements. Toutefois, la consommation d'énergie totale continue d'augmenter en France en raison de la croissance démographique. Il est donc essentiel de maintenir les efforts en matière de transition énergétique pour réduire la consommation d'énergie globale et préserver l'environnement.
+
+
+---
+
+
+## Partie C: Consommation énergétique en France et Metéo.
+
+### I. Introduction
+
+La consommation énergétique est un enjeu majeur dans la transition écologique et énergétique en France. Afin de mieux comprendre les variations de cette consommation, il est important d'analyser les données temporelles de manière fine et de les croiser avec d'autres données telles que les conditions météorologiques. Dans ce contexte, nous disposons de deux fichiers de données : "consommation-quotidienne-brute.csv" qui contient les données de consommation énergétique heure par heure depuis 2012 et "temperature-quotidienne-regionale.csv" qui contient les données météorologiques depuis 2016. Nous allons dans la suite explorer ces données pour comprendre les tendances et les relations entre la consommation énergétique et les conditions météorologiques.
+
+
+### II. Variabilité saisonnier et consommation totale
+
+La compréhension de la variabilité saisonnière de la consommation énergétique totale est essentielle pour comprendre les modèles de consommation d'énergie et élaborer des stratégies d'optimisation de la production et de la distribution d'énergie. Dans cette optique, il est possible d'analyser les données de consommation énergétique heure par heure pour étudier la variation de la consommation en fonction des saisons.
+
+**Chargement des données**
+
+```{r message=FALSE, warning=FALSE}
+cons_quo_brut <- read_delim("https://raw.githubusercontent.com/BaldeAicha/Document_projet/main/CQB.csv", delim = ";", escape_double = FALSE, trim_ws = TRUE)
+
+
+colnames(cons_quo_brut) =c("DD.HH","Date","Heure","Cons.brut.GRT","Statut.GRTgaz"            ,"Cons.brut.Ter","Statut.Ter","Cons.brut.totale","Cons.brut.MW.RTE","Statut.RTE","Cons.brut.MW")
+
+temp_quot_reg <- read_delim("https://raw.githubusercontent.com/BaldeAicha/Document_projet/main/TQR.csv", 
+    delim = ";", escape_double = FALSE, trim_ws = TRUE) %>% 
+  rename(C_INSEE_reg="Code INSEE région", 
+         TMin = "TMin (°C)",
+         TMax = "TMax (°C)",
+         TMoy = "TMoy (°C)")
+```
+
+
+**Traitement des données**
+
+La consommation d'énergie en France varie d'année en année en fonction de divers facteurs tels que les changements économiques, les politiques énergétiques mises en place, les conditions météorologiques, les comportements des consommateurs, etc. Ainsi, il est important de surveiller régulièrement les tendances de la consommation d'énergie pour adapter les politiques énergétiques et les comportements des consommateurs en conséquence.
+
+```{r message=FALSE, warning=FALSE}
+cons_quo_brut$Date = as.Date(cons_quo_brut$Date, format = "%d/%m/%Y")
+
+data_year = cons_quo_brut %>%
+  mutate(annee = year(Date)) %>% 
+  group_by(annee) %>%
+  select(Cons.brut.GRT, Cons.brut.Ter, Cons.brut.totale, Cons.brut.MW.RTE, Cons.brut.MW) %>% 
+  summarize_all(.funs = sum, na.rm = TRUE)
+
+
+data_saison = cons_quo_brut %>%
+  group_by(Date) %>%
+  select(Cons.brut.GRT, Cons.brut.Ter, Cons.brut.totale, Cons.brut.MW.RTE, Cons.brut.MW) %>% 
+  summarize_all(.funs = sum, na.rm = TRUE)
+```
+
+
+#### 1. Consommation saisonnière d'énergie par mois
+
+
+```{r message=FALSE, warning=FALSE}
+data_saison %>% 
+  mutate(Mois = month(Date), Annee = year(Date)) %>% 
+  group_by(Mois) %>% 
+  select(Cons.brut.GRT, Cons.brut.Ter, Cons.brut.totale, Cons.brut.MW.RTE,Cons.brut.MW) %>% 
+  summarize_all(.funs = sum, na.rm = TRUE) %>%
+  pivot_longer(cols = -Mois, names_to = "Type", values_to = "Consommation") %>%
+  ggplot(aes(x = Mois, y = Consommation, color = Type)) +
+  geom_line(size = 1) +
+  scale_x_continuous(breaks = 1:12, labels = c("Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jui", "Aoû", "Sep", "Oct", "Nov", "Déc")) +
+  labs(title = "Consommation saisonnière d'énergie par mois",
+       x = "Mois",
+       y = "Consommation (MW)")+
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+On observe une variabilité saisonnière évidente dans les données, avec des pics de consommation en hiver et des creux en été.
+
+
+#### 2. Variabilité annuelle de la consommation énergétique totale
+
+
+```{r message=FALSE, warning=FALSE}
+data_year_long <- gather(data_year, variable, value, -annee)
+
+ggplot(data_year_long, aes(x = annee, y = value, color = variable)) +
+  geom_line() +
+  labs(title = "Variabilité annuelle de la consommation énergétique totale",
+       x = "Année",
+       y = "Consommation (MW)",
+       color = "Variable") +
+  theme_minimal() +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+
+La consommation énergétique totale de la France entre 2012 et 2021 est représentée dans le graphique en prenant en compte cinq sources d'énergie principales : GRT gaz, TER gaz, Totale gaz, RTE électricité et Total électricité.
+
+Il est possible que la consommation énergétique du TER (Transport express régional) soit inférieure à celle du GRT (Grand réseau de transport) en raison de divers facteurs. Premièrement, les TER sont généralement utilisés pour des trajets de courte et moyenne distance, ce qui implique une consommation d'énergie moindre par rapport aux trains à grande vitesse qui parcourent de plus longues distances. De plus, les TER utilisent souvent des technologies plus modernes et économes en énergie, comme des moteurs électriques et des systèmes de régénération d'énergie au freinage. Enfin, les TER sont plus fréquents et circulent sur des lignes plus courtes, ce qui réduit les temps d'attente et encourage l'utilisation des transports en commun plutôt que des véhicules individuels, contribuant ainsi à une réduction de la consommation d'énergie globale.
+
+En résumé, la consommation énergétique du TER peut être inférieure à celle du GRT en raison de sa nature de transport à courte et moyenne distance, de l'utilisation de technologies plus efficaces et de son impact positif sur les habitudes de déplacement favorisant les transports en commun.
+
+### III. Analyse de l'impact de la température sur la consommation d'énergie en France
+
+L'étude de la relation entre la consommation d'énergie et la température moyenne est d'une grande importance dans le domaine de l'énergie. Dans cette analyse, nous allons étudier la consommation en fonction de la température moyenne sur la France, en utilisant les données de température moyenne régionale et les données de consommation d'énergie totale. Nous allons rassembler les données des deux tables en considerant le departement de Auvergne-Rhône-Alpes.
+
+**Temperature moyenne**
+
+```{r message=FALSE, warning=FALSE}
+data_temps_cons = temp_quot_reg %>% select(-ID) %>% inner_join(data_saison)
+
+
+data_Auvergne_Rhône_Alpes <- data_temps_cons %>% 
+  filter(Région == "Auvergne-Rhône-Alpes") %>% 
+  select(TMoy, Cons.brut.GRT, Cons.brut.Ter, Cons.brut.totale, Cons.brut.MW.RTE, Cons.brut.MW)
+
+
+options(repr.plot.width=8, repr.plot.height=6) # ajuster la taille de la figure
+matplot(data_Auvergne_Rhône_Alpes$TMoy, data_Auvergne_Rhône_Alpes[, -1], type = "l", lty = 1, col = 1:5, xlab = "Température moyenne", ylab = "Consommation")
+legend("topright", legend = names(data_Auvergne_Rhône_Alpes[, -1]), col = 1:5, lty = 1)
+```
+
+**Temperature minimale**
+
+```{r message=FALSE, warning=FALSE}
+data_temps_cons = temp_quot_reg %>% select(-ID) %>% inner_join(data_saison)
+
+
+data_Auvergne_Rhône_Alpes <- data_temps_cons %>% 
+  filter(Région == "Auvergne-Rhône-Alpes") %>% 
+  select(TMin, Cons.brut.GRT, Cons.brut.Ter, Cons.brut.totale, Cons.brut.MW.RTE, Cons.brut.MW)
+
+
+options(repr.plot.width=8, repr.plot.height=6) # ajuster la taille de la figure
+matplot(data_Auvergne_Rhône_Alpes$TMin, data_Auvergne_Rhône_Alpes[, -1], type = "l", lty = 1, col = 1:5, xlab = "Température minimale", ylab = "Consommation")
+legend("topright", legend = names(data_Auvergne_Rhône_Alpes[, -1]), col = 1:5, lty = 1)
+```
+
+
+**Temperature minimale**
+
+```{r message=FALSE, warning=FALSE}
+data_temps_cons = temp_quot_reg %>% select(-ID) %>% inner_join(data_saison)
+
+
+data_Auvergne_Rhône_Alpes <- data_temps_cons %>% 
+  filter(Région == "Auvergne-Rhône-Alpes") %>% 
+  select(TMax, Cons.brut.GRT, Cons.brut.Ter, Cons.brut.totale, Cons.brut.MW.RTE, Cons.brut.MW)
+
+
+options(repr.plot.width=8, repr.plot.height=6) # ajuster la taille de la figure
+matplot(data_Auvergne_Rhône_Alpes$TMax, data_Auvergne_Rhône_Alpes[, -1], type = "l", lty = 1, col = 1:5, xlab = "Température maximale", ylab = "Consommation")
+legend("topright", legend = names(data_Auvergne_Rhône_Alpes[, -1]), col = 1:5, lty = 1)
+```
+
+
+En observant les données de consommation d'énergie et de températures moyennes en Auvergne-Rhône-Alpes, on constate une tendance claire: plus la température baisse, plus la consommation d'énergie augmente. Cette relation inverse est observée non seulement pour la température moyenne, mais également pour la température minimale et maximale. Il est donc important de prendre en compte les variations de température lors de l'analyse des tendances de consommation d'énergie dans cette région.
+
+
+### IV. Modélisation de la consommation d'énergie en fonction de la date et des conditions météorologiques
+
+Pour créer un modèle de prédiction de la consommation totale en fonction de la date et de la météo, nous utiliserons une régression linéaire multiple. Les variables indépendantes seront la date et la température moyenne, tandis que la variable dépendante sera la consommation totale.
+
+Le modèle peut être représenté par l'équation suivante :
+
+$$C_{totale} = \beta_{0} +\beta_{1} \times d+\beta_{2} \times T_{moyennes} + \epsilon$$
+
+Dans cette équation, $\beta_{0}$, $\beta_{1}$ et $\beta_{2}$ sont les coefficients à estimer, et ε est le terme d'erreur aléatoire et $d$ represente la date.
+
+Pour évaluer la qualité et les limitations du modèle, il est important de vérifier si les hypothèses de la régression linéaire multiple sont respectées. Cela comprend l'homoscédasticité (variance constante des erreurs), la linéarité, l'indépendance des erreurs et la normalité des erreurs.
+
+Il est également crucial de déterminer si le modèle est significatif et s'il présente de bonnes performances de prédiction. Pour cela, nous pouvons utiliser des métriques telles que le $R^2$ ajusté, qui mesure la proportion de variance expliquée par le modèle, ainsi que le RMSE (Root Mean Squared Error), qui mesure l'écart moyen entre les valeurs prédites et les valeurs réelles.
+
+Il est important de noter que le modèle peut présenter des limitations en raison de la qualité des données utilisées, de la non-linéarité de la relation entre les variables ou de la présence de variables non mesurées qui pourraient influencer la consommation d'énergie.
+
+Voici le code correspondant à la régression linéaire multiple en utilisant les variables "date" et "température moyenne" pour prédire la "consommation totale" :
+
+```{r message=FALSE, warning=FALSE}
+# Convertir la date en format date
+data_temps_cons$Date <- as.Date(data_temps_cons$Date)
+
+# Visualiser la relation entre la consommation totale et la température moyenne
+ggplot(data_temps_cons, aes(x = TMoy, y = Cons.brut.totale)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  labs(title = "Relation entre la consommation totale et la température moyenne")
+
+# Visualiser la relation entre la consommation totale et la date
+ggplot(data_temps_cons, aes(x = Date, y = Cons.brut.totale)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  labs(title = "Relation entre la consommation totale et la date")
+
+# Créer un modèle de régression linéaire simple
+model <- lm(Cons.brut.totale ~ TMoy + Date, data = data_temps_cons)
+
+# Afficher les résultats du modèle
+summary(model)
+
+# Visualiser les résidus du modèle
+ggplot(data = data_temps_cons, aes(x = model$fitted.values, y = model$residuals)) +
+  geom_point() +
+  labs(title = "Résidus du modèle de régression linéaire simple")
+```
+
+**Validation du model de regression**
+
+Avec un nombre d'echantillon grand, 
+
+```{r message=FALSE, warning=FALSE}
+length(model$residuals)
+```
+
+qui n'est pas compris dans l'intervalle $[3,5000]$, on ne peux donc pas appliquer le test de Shapiro. Mais nous pouvons conclure directement en regardand le graphique. 
+
+
+```{r message=FALSE, warning=FALSE}
+plot(model$residuals, log = "x", ylab = "Résidus", main = "Graphique des résidus")
+```
+
+Exemple : Nous allons prédire la consommation totale pour une température moyenne de 15°C et une date donnée 
+
+```{r message=FALSE, warning=FALSE}
+Nouvelle_doonnees <- data.frame(TMoy = 15, Date = as.Date("2022-06-01"))
+predict(model, Nouvelle_doonnees)
+```
+
+
+### V. Conclusion
+
+Cette étude a mis en évidence une corrélation entre les conditions météorologiques en France, notamment la température, et la consommation d'énergie. Les mois d'hiver, marqués par des températures plus froides, ont été associés à une augmentation de la consommation d'énergie. De plus, un modèle prédictif a été développé pour estimer la consommation d'énergie en fonction de la date et des données météorologiques. Bien que ce modèle ait démontré une certaine capacité à prédire la consommation d'énergie, il est limité par la complexité des facteurs influençant cette consommation. En conclusion, cette étude souligne l'importance de prendre en considération les conditions météorologiques dans la gestion et la planification de la consommation d'énergie en France.
